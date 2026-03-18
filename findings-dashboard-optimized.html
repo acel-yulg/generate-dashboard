@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Findings & Actions Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:#0d0f12;--bg2:#13161b;--bg3:#1a1e25;
+  --card:#1e232c;--border:#2a303c;--border2:#333b48;
+  --text:#e8ecf0;--muted:#6b7585;
+  --accent:#22d38a;--blue:#4f9cf9;--orange:#f97316;
+  --green:#22d38a;--red:#f24545;--yellow:#f5c842;--purple:#9b7ff4;
+  --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;}
+
+/* ── UPLOAD ── */
+#upload-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;position:relative;overflow:hidden;}
+#upload-screen::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(circle,rgba(34,211,138,0.05) 0%,transparent 70%);top:-150px;left:50%;transform:translateX(-50%);pointer-events:none;}
+.logo-tag{font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:1.5rem;opacity:.8;}
+.upload-title{font-family:var(--font-head);font-size:clamp(2rem,5vw,3.2rem);font-weight:800;text-align:center;line-height:1.1;margin-bottom:.75rem;background:linear-gradient(135deg,#e8ecf0 30%,#22d38a 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.upload-sub{color:var(--muted);font-size:13px;text-align:center;margin-bottom:2.5rem;line-height:1.7;max-width:420px;}
+.drop-zone{width:100%;max-width:520px;border:1.5px dashed var(--border2);border-radius:16px;padding:3.5rem 2rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg2);position:relative;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(34,211,138,0.04);}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{width:52px;height:52px;margin:0 auto 1rem;background:var(--bg3);border-radius:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;}
+.drop-icon svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.drop-label{font-family:var(--font-head);font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.drop-hint{font-size:12px;color:var(--muted);}
+.col-guide{margin-top:2rem;max-width:520px;width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;}
+.col-guide-title{font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:.75rem;}
+.col-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--muted);}
+.chip.req{color:var(--accent);border-color:rgba(34,211,138,.3);}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none;min-height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:52px;border-bottom:1px solid var(--border);background:#0a0e1a;position:sticky;top:0;z-index:100;}
+.topbar-brand{font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:400;color:var(--text);letter-spacing:.01em;display:flex;align-items:center;gap:14px;}
+.topbar-brand strong{color:#2dd4bf;font-weight:700;letter-spacing:.02em;}
+.topbar-filebadge{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:#3d5070;border-left:1px solid var(--border);padding-left:14px;margin-left:2px;}
+.topbar-filebadge svg{flex-shrink:0;opacity:.6;}
+.topbar-filebadge span{color:#6b829e;}
+.topbar-nav{display:flex;gap:28px;align-items:center;}
+.topbar-nav a{font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#6b829e;text-decoration:none;transition:color .15s;letter-spacing:.01em;background:none;border:1px solid #1d2840;border-radius:6px;padding:4px 12px;cursor:pointer;}
+.topbar-nav a:hover,.topbar-nav a.active{color:var(--text);border-color:#243050;}
+
+.dash-body{padding:1.5rem 2rem 3rem;max-width:1400px;margin:0 auto;}
+.section-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.75rem;font-weight:500;}
+
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin-bottom:1.75rem;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.25rem;position:relative;overflow:hidden;}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi.red::after{background:var(--red);}   .kpi.green::after{background:var(--green);}
+.kpi.blue::after{background:var(--blue);} .kpi.yellow::after{background:var(--yellow);}
+.kpi.purple::after{background:var(--purple);}
+.kpi-label{font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4;}
+.kpi-value{font-family:var(--font-head);font-size:28px;font-weight:700;line-height:1;margin-bottom:4px;}
+.kpi.red .kpi-value{color:var(--red);}   .kpi.green .kpi-value{color:var(--green);}
+.kpi.blue .kpi-value{color:var(--blue);} .kpi.yellow .kpi-value{color:var(--yellow);}
+.kpi.purple .kpi-value{color:var(--purple);}
+.kpi-sub{font-size:11px;color:var(--muted);}
+
+/* charts row */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.75rem;}
+@media(max-width:700px){.charts-row{grid-template-columns:1fr;}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+.chart-title{font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.chart-desc{font-size:11px;color:var(--muted);margin-bottom:.85rem;}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:.75rem;}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.ls{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+
+/* insight cards */
+.insights-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:1.75rem;}
+.insight{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem 1.2rem;display:flex;gap:11px;align-items:flex-start;}
+.ins-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.ins-icon.red{background:rgba(242,69,69,.12);}   .ins-icon.green{background:rgba(34,211,138,.12);}
+.ins-icon.yellow{background:rgba(245,200,66,.12);}.ins-icon.blue{background:rgba(79,156,249,.12);}
+.ins-icon.purple{background:rgba(155,127,244,.12);}
+.ins-body h4{font-family:var(--font-head);font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.ins-body p{font-size:11px;color:var(--muted);line-height:1.6;}
+
+/* table */
+.table-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1.75rem;}
+.table-head{padding:.9rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{padding:9px 14px;text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--bg3);border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:rgba(34,211,138,.03);}
+td{padding:9px 14px;color:var(--text);font-size:12px;}
+td.num{text-align:right;}
+.badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:500;}
+.badge.power{background:rgba(242,69,69,.12);color:var(--red);}
+.badge.sfp{background:rgba(79,156,249,.12);color:var(--blue);}
+.badge.device{background:rgba(155,127,244,.12);color:var(--purple);}
+.badge.other{background:rgba(107,117,133,.15);color:var(--muted);}
+.bar-wrap{display:flex;align-items:center;gap:8px;}
+.bar-bg{background:var(--bg3);border-radius:3px;height:5px;width:80px;overflow:hidden;flex-shrink:0;}
+.bar-fill{height:100%;border-radius:3px;}
+
+.no-data{text-align:center;padding:3rem;color:var(--muted);font-size:13px;}
+.fade-in{animation:fi .35s ease both;}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+ <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv"/>
+    <div class="drop-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div class="drop-label">Drop your Excel file here</div>
+    <div class="drop-hint">or click to browse — .xlsx / .xls / .csv</div>
+  </div>
+  
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <nav class="topbar">
+    <div class="topbar-brand">
+      <strong>SIRTI MENA</strong>
+      <div class="topbar-filebadge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span id="fname-badge">—</span>
+      </div>
+    </div>
+    <nav class="topbar-nav">
+      <a href="#" onclick="resetDash();return false;">↑ Upload new file</a>
+    </nav>
+  </nav>
+  <div class="dash-body">
+    <div class="section-label" style="margin-top:.5rem">Overview</div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="section-label">What went wrong vs how it was fixed</div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Finding type breakdown</div>
+        <div class="chart-desc">What category of problem was reported</div>
+        <div class="legend" id="leg1"></div>
+        <div style="position:relative;height:210px;"><canvas id="c1"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">How incidents were resolved</div>
+        <div class="chart-desc">Who or what fixed the problem</div>
+        <div class="legend" id="leg2"></div>
+        <div style="position:relative;height:210px;"><canvas id="c2"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-label">Power fault detail</div>
+    <div class="chart-card" style="margin-bottom:1.75rem;">
+      <div class="chart-title">Power-related finding sub-types</div>
+      <div class="chart-desc">Breakdown of what specifically caused the power fault</div>
+      <div style="position:relative;" id="c3-wrap"><canvas id="c3"></canvas></div>
+    </div>
+
+    <div class="section-label">Repeat-offender nodes (faulted more than once)</div>
+    <div class="table-card">
+      <div class="table-head">
+        <div class="chart-title">Recurring nodes</div>
+        <span id="repeat-count" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>#</th><th>Node ID</th><th>Faults</th><th>Frequency</th><th>Most common finding</th></tr></thead>
+        <tbody id="repeat-tbody"></tbody></table>
+      </div>
+    </div>
+
+
+  </div>
+</div>
+
+<script>
+let charts = [];
+
+// Drag & drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
+document.getElementById('file-input').addEventListener('change', e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+
+function handleFile(file) {
+  document.getElementById('fname-badge').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    processData(XLSX.utils.sheet_to_json(ws, {header:1}));
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function findCol(headers, pats) {
+  const h = headers.map(x=>String(x||'').toLowerCase());
+  for (const p of pats) { const i=h.findIndex(x=>x.includes(p)); if(i!==-1) return i; }
+  return -1;
+}
+
+function processData(raw) {
+  // find header row
+  let hr = 0;
+  for (let i=0;i<Math.min(5,raw.length);i++) { if(raw[i]&&raw[i].filter(Boolean).length>=2){hr=i;break;} }
+  const headers = raw[hr];
+  const rows = raw.slice(hr+1).filter(r=>r&&r.some(c=>c!==null&&c!==''&&c!==undefined));
+
+  const iF = findCol(headers, ['initial finding','finding','fault description','description','problem','issue']);
+  const iA = findCol(headers, ['action taken','action','resolution','remedy','fix','response']);
+  const iN = findCol(headers, ['node id','node','device','equipment','asset','site']);
+
+  if (iF===-1||iA===-1) { alert('Could not detect "Initial Findings" or "Action Taken" columns. Please check your column names.'); return; }
+
+  const records = rows.map((r,i)=>({
+    idx: i+1,
+    finding: String(r[iF]||'').trim(),
+    action:  String(r[iA]||'').trim(),
+    node:    iN>=0 ? String(r[iN]||'').trim() : '—'
+  })).filter(r=>r.finding&&r.finding!=='-'&&r.action&&r.action!=='-');
+
+  if (!records.length) { alert('No valid records found. Check that your data rows are below the header.'); return; }
+
+  renderDashboard(records);
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  window.scrollTo(0,0);
+}
+
+// ── CATEGORISATION ──
+function categorizeFinding(s) {
+  const sl = s.toLowerCase();
+  if (/mcb|circuit breaker|breaker trip|main breaker|rccp|feeder pillar/.test(sl)) return 'MCB / breaker tripped';
+  if (/power fail|power off|power out|no power|power at|kahramaa|ups|psu|fuse|input power|unstable power/.test(sl)) return 'Power failure';
+  if (/sfp|fiber|fibre|optical|jack in|jack out/.test(sl)) return 'SFP / fiber';
+  if (/offline|not respond|unreachable|link down|device down|node down/.test(sl)) return 'Device offline';
+  if (/reboot|restart|reset/.test(sl)) return 'Reboot / restart';
+  if (/config|software|firmware|update/.test(sl)) return 'Config / software';
+  if (/maintenance|planned|upgrade/.test(sl)) return 'Planned maintenance';
+  return 'Other';
+}
+
+function categorizeAction(s) {
+  const sl = s.toLowerCase();
+  if (/auto|automatically/.test(sl)) return 'Auto-restored';
+  if (/kahramaa|kharama|third party|external/.test(sl)) return 'Kahramaa / external';
+  if (/rmc team|rmc/.test(sl)) return 'RMC team';
+  if (/turned.*on|turn.*on|switched.*on|restored.*power|power.*restored|fuse|mcb.*on|cb.*on/.test(sl)) return 'Power restored manually';
+  if (/reboot|restart|reset/.test(sl)) return 'Reboot / restart';
+  if (/replaced|replacement|swap|changed/.test(sl)) return 'Hardware replaced';
+  if (/sfp|fiber|fibre|jack/.test(sl)) return 'SFP / fiber fixed';
+  if (/config|software|firmware|update/.test(sl)) return 'Config / software fix';
+  if (/monitor|observ|watching/.test(sl)) return 'Monitoring only';
+  return 'Other resolution';
+}
+
+function findingMacro(s) {
+  const sl = s.toLowerCase();
+  if (/power|mcb|breaker|ups|psu|fuse|kahramaa|input power/.test(sl)) return 'Power / electrical';
+  if (/sfp|fiber|fibre|optical/.test(sl)) return 'SFP / fiber';
+  if (/offline|unreachable|link down|not respond/.test(sl)) return 'Device / node offline';
+  return 'Other';
+}
+
+function actionMacro(s) {
+  const sl = s.toLowerCase();
+  if (/auto|automatically/.test(sl)) return 'Auto-restored';
+  if (/kahramaa|kharama|rmc/.test(sl)) return 'Third party';
+  return 'Team fixed manually';
+}
+
+function counter(arr) {
+  const m={};
+  arr.forEach(x=>{m[x]=(m[x]||0)+1;});
+  return m;
+}
+function sortedEntries(obj) {
+  return Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderDashboard(records) {
+  charts.forEach(c=>c.destroy()); charts=[];
+
+  const total = records.length;
+  const macros  = records.map(r=>findingMacro(r.finding));
+  const actMacs = records.map(r=>actionMacro(r.action));
+  const findCats = records.map(r=>categorizeFinding(r.finding));
+  const actCats  = records.map(r=>categorizeAction(r.action));
+
+  const macroCnt  = counter(macros);
+  const actMacCnt = counter(actMacs);
+  const findCatCnt= counter(findCats);
+  const actCatCnt = counter(actCats);
+
+  const powerCount = (macroCnt['Power / electrical']||0);
+  const powerPct   = Math.round(powerCount/total*100);
+  const autoPct    = Math.round((actMacCnt['Auto-restored']||0)/total*100);
+
+  // Node repeat counts
+  const nodeCnt = {};
+  const nodeFaults = {};
+  records.forEach(r=>{
+    if (!r.node||r.node==='—') return;
+    nodeCnt[r.node]=(nodeCnt[r.node]||0)+1;
+    if (!nodeFaults[r.node]) nodeFaults[r.node]=[];
+    nodeFaults[r.node].push(r.finding);
+  });
+  const repeatNodes = sortedEntries(nodeCnt).filter(([,c])=>c>1);
+
+  // ── KPIs
+  document.getElementById('kpi-grid').innerHTML = [
+    {l:'Total incidents', v:total,          s:'valid records',         c:'blue'},
+    {l:'Power-related',   v:powerPct+'%',   s:`${powerCount} of ${total} faults`, c:'red'},
+    {l:'Auto-restored',   v:autoPct+'%',    s:`${actMacCnt['Auto-restored']||0} fixed themselves`, c:'green'},
+    {l:'Repeat nodes',    v:repeatNodes.length, s:'faulted more than once', c:'yellow'},
+    {l:'Unique nodes',    v:new Set(records.map(r=>r.node).filter(n=>n&&n!=='—')).size, s:'distinct devices', c:'purple'},
+  ].map(k=>`<div class="kpi ${k.c} fade-in"><div class="kpi-label">${k.l}</div><div class="kpi-value">${k.v}</div><div class="kpi-sub">${k.s}</div></div>`).join('');
+
+  // ── Chart 1: Finding macro donut
+  const MACRO_COLORS = {'Power / electrical':'#E24B4A','SFP / fiber':'#4f9cf9','Device / node offline':'#9b7ff4','Other':'#6b7585'};
+  const m1Labels = Object.keys(macroCnt);
+  const m1Data   = m1Labels.map(k=>macroCnt[k]);
+  const m1Colors = m1Labels.map(k=>MACRO_COLORS[k]||'#6b7585');
+  document.getElementById('leg1').innerHTML = m1Labels.map((l,i)=>`<span class="li"><span class="ls" style="background:${m1Colors[i]}"></span>${l} (${macroCnt[l]})</span>`).join('');
+  charts.push(new Chart(document.getElementById('c1'),{
+    type:'doughnut',
+    data:{labels:m1Labels,datasets:[{data:m1Data,backgroundColor:m1Colors,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>`${i.label}: ${i.raw} (${Math.round(i.raw/total*100)}%)`}}}}
+  }));
+
+  // ── Chart 2: Action macro donut
+  const ACT_COLORS = {'Team fixed manually':'#639922','Auto-restored':'#22d38a','Third party':'#BA7517'};
+  const m2Labels = Object.keys(actMacCnt);
+  const m2Data   = m2Labels.map(k=>actMacCnt[k]);
+  const m2Colors = m2Labels.map(k=>ACT_COLORS[k]||'#6b7585');
+  document.getElementById('leg2').innerHTML = m2Labels.map((l,i)=>`<span class="li"><span class="ls" style="background:${m2Colors[i]}"></span>${l} (${actMacCnt[l]})</span>`).join('');
+  charts.push(new Chart(document.getElementById('c2'),{
+    type:'doughnut',
+    data:{labels:m2Labels,datasets:[{data:m2Data,backgroundColor:m2Colors,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>`${i.label}: ${i.raw} (${Math.round(i.raw/total*100)}%)`}}}}
+  }));
+
+  // ── Chart 3: Finding sub-types horizontal bar (top 8)
+  const topCats = sortedEntries(findCatCnt).slice(0,8);
+  const c3h = Math.max(160, topCats.length*44+60);
+  document.getElementById('c3-wrap').style.height = c3h+'px';
+  const CAT_COLORS = ['#E24B4A','#F09595','#BA7517','#f97316','#4f9cf9','#9b7ff4','#22d38a','#6b7585'];
+  charts.push(new Chart(document.getElementById('c3'),{
+    type:'bar',
+    data:{labels:topCats.map(([k])=>k),datasets:[{data:topCats.map(([,v])=>v),backgroundColor:CAT_COLORS.slice(0,topCats.length),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>`${i.raw} incidents (${Math.round(i.raw/total*100)}%)`}}},
+      scales:{
+        x:{ticks:{color:'#6b7585',font:{size:11}},grid:{color:'rgba(255,255,255,0.06)'}},
+        y:{ticks:{color:'#6b7585',font:{size:11}},grid:{display:false}}
+      }
+    }
+  }));
+
+  // ── Repeat nodes table
+  
+  document.getElementById('repeat-count').textContent = `${repeatNodes.length} nodes`;
+  const maxRep = repeatNodes[0]?.[1]||1;
+  document.getElementById('repeat-tbody').innerHTML = repeatNodes.slice(0,20).map(([node,cnt],i)=>{
+    const topF = counter(nodeFaults[node]);
+    const mf   = sortedEntries(topF)[0]?.[0]||'—';
+    const pct  = Math.round(cnt/maxRep*100);
+    const barCol = cnt>=5?'#E24B4A':cnt>=3?'#BA7517':'#4f9cf9';
+    return `<tr>
+      <td class="num" style="color:var(--muted)">${i+1}</td>
+      <td style="font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${node}</td>
+      <td style="color:${barCol};font-weight:500">${cnt}×</td>
+      <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${barCol}"></div></div></div></td>
+      <td style="color:var(--muted);font-size:11px;max-width:260px;overflow:hidden;text-overflow:ellipsis">${mf.substring(0,60)}${mf.length>60?'…':''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="no-data">No repeat nodes found</td></tr>';
+
+  // ── All records table removed to save space
+
+}
+
+function resetDash() {
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('file-input').value='';
+}
+
+// ─── Auto-fetch from GitHub raw URL ──────────────────────────────────────────
+const GITHUB_EXCEL_URL = 'https://raw.githubusercontent.com/acel-yulg/findings-action-taken/main/data.xlsx';
+
+async function autoLoad() {
+    try {
+        const res = await fetch(GITHUB_EXCEL_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        parseBuffer(new Uint8Array(buf), 'data.xlsx');
+    } catch (err) {
+        console.warn('Auto-fetch failed:', err);
+        showSetup();
+    }
+    
+}
+function showSetup() {
+    document.getElementById('setupBanner').style.display = 'block';
+}
+
+// Kick off auto-load on page open
+autoLoad();
+</script>
+</body>
+</html>
